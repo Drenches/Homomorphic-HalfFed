@@ -36,7 +36,7 @@ context.global_scale = pow(2, bits_scale)
 
 # galois keys are required to do ciphertext rotations
 context.generate_galois_keys()
-SingeTest = False
+SingeTest = True
 if SingeTest:
     round = 1
     for i in range(round):
