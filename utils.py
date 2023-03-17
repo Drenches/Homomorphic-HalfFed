@@ -61,8 +61,9 @@ class ConvNet(torch.nn.Module):
         x = self.fc2(x)
         return x
 
-class ServerNet:
+class Encrypt(torch.nn.Module):
     def __init__(self, torch_nn):
+        super(Encrypt, self).__init__()        
         self.conv1_weight = torch_nn.conv1.weight.data.view(
             torch_nn.conv1.out_channels, torch_nn.conv1.kernel_size[0],
             torch_nn.conv1.kernel_size[1]
@@ -84,14 +85,32 @@ class ServerNet:
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-class UserNet:
-    def __init__(self, torch_nn):
-        self.fc1 = torch_nn.fc1
-        self.fc2 = torch_nn.fc2
+
+class ServerNet(torch.nn.Module):
+    def __init__(self):
+        super(ServerNet, self).__init__()        
+        self.conv1 = torch.nn.Conv2d(1, 4, kernel_size=7, padding=0, stride=3)
+  
+    def forward(self, x):
+        x = self.conv1(x)
+        x = x * x
+        # flattening while keeping the batch axis
+        x = x.view(-1, 256)
+        return x
+  
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+
+class UserNet(torch.nn.Module):
+    def __init__(self, hidden=64, output=10):
+        super(UserNet, self).__init__()        
+        self.fc1 = torch.nn.Linear(256, hidden)
+        self.fc2 = torch.nn.Linear(hidden, output)
   
     def forward(self, x):
         x = self.fc1(x)
-        x = F.relu(x)
+        x = x * x
         x = self.fc2(x)
         return x
   
