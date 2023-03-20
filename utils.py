@@ -4,6 +4,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import tenseal as ts
 import torch.nn.functional as F
+import pdb
 
 class EncConvNet:
     def __init__(self, torch_nn):
@@ -128,3 +129,23 @@ def ServerInference(enc_model, x_enc, windows_nb, kernel_shape, stride):
     # Encrypted evaluation
     enc_output = enc_model(x_enc, windows_nb)
     return enc_output
+
+def train_acc(output, target):
+    class_correct = list(0. for i in range(10))
+    class_total = list(0. for i in range(10))
+    # convert output probabilities to predicted class
+    _, pred = torch.max(output, 1)
+    # compare predictions to true label
+    correct = np.squeeze(pred.eq(target.data.view_as(pred)))
+    
+    # calculate train accuracy for each object class
+    for i in range(len(target)):
+        label = target.data[i]
+        class_correct[label] += correct[i].item()
+        class_total[label] += 1
+    
+    print(
+        f'Train Accuracy (Overall): {np.sum(class_correct) / np.sum(class_total)}% \n'
+        # f'Train Accuracy (Overall): {int(100 * np.sum(class_correct) / np.sum(class_total))}% \n' 
+        # f'({int(np.sum(class_correct))}/{int(np.sum(class_total))})'
+        )
