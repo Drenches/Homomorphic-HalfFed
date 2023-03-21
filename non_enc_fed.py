@@ -17,7 +17,8 @@ entire_model = ConvNet()
 
 batch_size = 512
 num_clients = 10
-major_classes_num=1
+major_classes_num=3
+seed = 2021
 train_data = datasets.MNIST('data', train=True, download=True, transform=transforms.ToTensor())
 test_data = datasets.MNIST('data', train=False, download=True, transform=transforms.ToTensor())
 
@@ -28,8 +29,15 @@ client_datasets_part = MNISTPartitioner(
     train_data.targets,
     num_clients=num_clients,
     partition="noniid-#label",
-    major_classes_num=major_classes_num
+    major_classes_num=major_classes_num,
+    seed = seed
 )
+# client_datasets_part = MNISTPartitioner(train_data.targets, 
+#                                         num_clients=num_clients,
+#                                         partition="noniid-labeldir", 
+#                                         dir_alpha=0.5,
+#                                         seed=seed  
+# )
 # client_datasets = torch.utils.data.random_split(train_data, [len(train_data)//num_clients]*num_clients)
 
 # User model list
@@ -58,6 +66,7 @@ for i in range(round):
         # Train the user model on the client's dataset
         images, labels = next(iter(client_dataloader))
         images, labels = images.cuda(), labels.cuda()
+        # if client_id ==6: pdb.set_trace()
         
         # Forward pass through the server model
         front_output = server_model(images)
@@ -74,7 +83,7 @@ for i in range(round):
         # Calculate the train and test accuracy
         print('Client ', client_id)
         train_acc(user_output, labels)
-
+    # print(labels)
     # Aggregate the gradients and update the server model
     server_optimizer.step()
 
@@ -85,18 +94,26 @@ test_part = MNISTPartitioner(
     test_data.targets,
     num_clients=num_clients,
     partition="noniid-#label",
-    major_classes_num=major_classes_num
+    major_classes_num=major_classes_num,
+    seed = seed
 )
-test_batch_size = 1024
+# test_part = MNISTPartitioner(test_data.targets, 
+#                                         num_clients=num_clients,
+#                                         partition="noniid-labeldir", 
+#                                         dir_alpha=0.5, 
+#                                         seed=seed)
+
+test_batch_size = 2048
 server_model.eval()
 for client_id in range(num_clients):
     client_model = client_model_list[client_id].eval()
-    test_loader = torch.utils.data.DataLoader(train_data, sampler=SubsetRandomSampler(client_datasets_part[client_id]), batch_size=batch_size)
+    test_loader = torch.utils.data.DataLoader(test_data, sampler=SubsetRandomSampler(test_part[client_id]), batch_size=test_batch_size)
     test_loss = 0.0
     class_correct = list(0. for i in range(10))
     class_total = list(0. for i in range(10))
     for images, labels in test_loader:
         images, labels = images.cuda(), labels.cuda()
+        # if client_id ==6: pdb.set_trace()
         server_output = server_model(images)
         user_output = client_model(server_output)
         loss = criterion(user_output, labels)
@@ -115,7 +132,7 @@ for client_id in range(num_clients):
         f'({int(np.sum(class_correct))}/{int(np.sum(class_total))})\n'
     )
 
-
+pdb.set_trace()
 
 # Send the user model's gradient to the server
 # user_gradient = {param_name: param.grad for param_name, param in user_model.named_parameters()}
