@@ -145,7 +145,7 @@ def train_acc(output, target):
         class_total[label] += 1
     
     print(
-        f'Train Accuracy (Overall): {np.sum(class_correct) / np.sum(class_total)}% \n'
+        f'Train Accuracy (Overall): {np.sum(class_correct) / np.sum(class_total)} \n'
         # f'Train Accuracy (Overall): {int(100 * np.sum(class_correct) / np.sum(class_total))}% \n' 
         # f'({int(np.sum(class_correct))}/{int(np.sum(class_total))})'
         )
