@@ -149,3 +149,12 @@ def train_acc(output, target):
         # f'Train Accuracy (Overall): {int(100 * np.sum(class_correct) / np.sum(class_total))}% \n' 
         # f'({int(np.sum(class_correct))}/{int(np.sum(class_total))})'
         )
+
+def TestSampGen(data, distribution):
+    class_counts = torch.bincount(data.targets).cuda()
+    class_weights = 1.0 / class_counts
+    for i in range(len(distribution)):
+        skew_weights =  distribution[i]*class_weights
+        sample_weights = skew_weights[data.targets]
+        distribution[i] = sample_weights
+    return distribution

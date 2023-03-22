@@ -8,7 +8,7 @@ import pdb
 import datetime
 from fedlab.utils.dataset import MNISTPartitioner
 from torch.utils.data import SubsetRandomSampler
-
+from torch.utils.data import WeightedRandomSampler
 
 ## Load data and model
 gpu = torch.cuda.is_available()
@@ -16,30 +16,29 @@ gpu = torch.cuda.is_available()
 entire_model = ConvNet()
 
 batch_size = 512
-num_clients = 10
 major_classes_num=3
+num_clients = 10
 seed = 2021
+# num_classes = 10
 train_data = datasets.MNIST('data', train=True, download=True, transform=transforms.ToTensor())
 test_data = datasets.MNIST('data', train=False, download=True, transform=transforms.ToTensor())
-
-
+num_classes = torch.bincount(test_data.targets).shape[0]
 server_model = ServerNet().cuda()
 # Split the dataset into multiple clients
-client_datasets_part = MNISTPartitioner(
-    train_data.targets,
-    num_clients=num_clients,
-    partition="noniid-#label",
-    major_classes_num=major_classes_num,
-    seed = seed
-)
-# client_datasets_part = MNISTPartitioner(train_data.targets, 
-#                                         num_clients=num_clients,
-#                                         partition="noniid-labeldir", 
-#                                         dir_alpha=0.5,
-#                                         seed=seed  
+# client_datasets_part = MNISTPartitioner(
+#     train_data.targets,
+#     num_clients=num_clients,
+#     partition="noniid-#label",
+#     major_classes_num=major_classes_num,
+#     seed = seed
 # )
+client_datasets_part = MNISTPartitioner(train_data.targets, 
+                                        num_clients=num_clients,
+                                        partition="noniid-labeldir", 
+                                        dir_alpha=0.5,
+                                        seed=seed)
 # client_datasets = torch.utils.data.random_split(train_data, [len(train_data)//num_clients]*num_clients)
-
+client_dataloaders = [torch.utils.data.DataLoader(train_data, sampler=SubsetRandomSampler(client_datasets_part[i]), batch_size=batch_size) for i in range(num_clients)]
 # User model list
 client_model_list = [UserNet().cuda().train() for _ in range(num_clients)]
 
@@ -51,23 +50,24 @@ client_optimizer_list = [torch.optim.Adam(client_model.parameters(), lr=0.001) f
 
 # Muti-round training
 server_model.train()
-round = 150
+round = 100
+distribution_list = [torch.zeros(num_classes).cuda() for _ in range(num_clients)] # record labels distribution
 for i in range(round):
     print('round:', i)
 
     # One batch iteration across each client
     server_optimizer.zero_grad()
     for client_id in range(num_clients):
-    # for client_id, client_dataset in enumerate(client_datasets):
-        # Create a dataloader for the client's dataset
-        client_dataloader = torch.utils.data.DataLoader(train_data, sampler=SubsetRandomSampler(client_datasets_part[client_id]), batch_size=batch_size)
+
+        # load client's dataset
+        client_dataloader = client_dataloaders[client_id]
         client_optimizer = client_optimizer_list[client_id]
         client_model = client_model_list[client_id]
         # Train the user model on the client's dataset
         images, labels = next(iter(client_dataloader))
         images, labels = images.cuda(), labels.cuda()
-        # if client_id ==6: pdb.set_trace()
-        
+        distribution_list[client_id] += torch.bincount(labels.flatten(), minlength=num_classes)
+
         # Forward pass through the server model
         front_output = server_model(images)
         
@@ -83,37 +83,34 @@ for i in range(round):
         # Calculate the train and test accuracy
         print('Client ', client_id)
         train_acc(user_output, labels)
-    # print(labels)
+
     # Aggregate the gradients and update the server model
     server_optimizer.step()
 
 
 # Final test
 print('\n ### Final Test ###')
-test_part = MNISTPartitioner(
-    test_data.targets,
-    num_clients=num_clients,
-    partition="noniid-#label",
-    major_classes_num=major_classes_num,
-    seed = seed
-)
-# test_part = MNISTPartitioner(test_data.targets, 
-#                                         num_clients=num_clients,
-#                                         partition="noniid-labeldir", 
-#                                         dir_alpha=0.5, 
-#                                         seed=seed)
+# test_part = MNISTPartitioner(
+#     test_data.targets,
+#     num_clients=num_clients,
+#     partition="noniid-#label",
+#     major_classes_num=major_classes_num,
+#     seed = seed
+# )
 
 test_batch_size = 2048
 server_model.eval()
+distribution_list = TestSampGen(test_data, distribution_list)
 for client_id in range(num_clients):
     client_model = client_model_list[client_id].eval()
-    test_loader = torch.utils.data.DataLoader(test_data, sampler=SubsetRandomSampler(test_part[client_id]), batch_size=test_batch_size)
+    # test_loader = torch.utils.data.DataLoader(test_data, sampler=SubsetRandomSampler(test_part[client_id]), batch_size=test_batch_size)
+    sampler = WeightedRandomSampler(weights=distribution_list[client_id].tolist(), replacement=True, num_samples=len(test_data)//num_clients)
+    test_loader = torch.utils.data.DataLoader(test_data, sampler=sampler, batch_size=test_batch_size)
     test_loss = 0.0
     class_correct = list(0. for i in range(10))
     class_total = list(0. for i in range(10))
     for images, labels in test_loader:
         images, labels = images.cuda(), labels.cuda()
-        # if client_id ==6: pdb.set_trace()
         server_output = server_model(images)
         user_output = client_model(server_output)
         loss = criterion(user_output, labels)
