@@ -79,6 +79,7 @@ if data_name== 'CIFAR10':
     # load server model
     server_model_init = ServerNetCIFAR10().cuda()
     server_model_list = [copy.deepcopy(server_model_init) for _ in range(num_clients)]
+    # server_model_list = [ServerNetCIFAR10().cuda().train() for _ in range(num_clients)]
 
 num_classes = torch.bincount(torch.Tensor(test_data.targets).int()).shape[0]
 
@@ -100,16 +101,15 @@ def open_train_mode(model_list):
     for model in model_list:
         model.train()
 # Muti-round training
-def train(round = 200, epoches = 100,  server_model_list= server_model_list):
+def train(round = 500, epoches = 1000,  server_model_list= server_model_list):
     server_stop_marker = 0
-    distribution_list = [torch.zeros(num_classes).cuda() for _ in range(num_clients)] # record labels distribution
+     # record labels distribution
     for i in range(round):
         print('round:', i)
+        distribution_list = [torch.zeros(num_classes).cuda() for _ in range(num_clients)]
         for client_id in range(num_clients):
 
             # Train multiple epoches for each client
-            acc_counter = 0
-
             # Load server model corresonding for each specific client
             server_model = server_model_list[client_id].train()
             server_optimizer =server_optimizer_list[client_id]
@@ -119,7 +119,9 @@ def train(round = 200, epoches = 100,  server_model_list= server_model_list):
             client_optimizer = client_optimizer_list[client_id]
             client_model = client_model_list[client_id].train()
             
-            num_correct = 0
+            correct = 0
+            total = 0
+            train_loss = 0
             for epoch in range(epoches):
 
                 client_optimizer.zero_grad()
@@ -144,20 +146,48 @@ def train(round = 200, epoches = 100,  server_model_list= server_model_list):
                 client_optimizer.step()
                 server_optimizer.step()
                 
+
                 _, pred = torch.max(user_output, 1)
-                correct = np.squeeze(pred.eq(labels.data.view_as(pred)))
+                correct += torch.sum(np.squeeze(pred.eq(labels.data.view_as(pred))))
+                train_loss += loss.item()
+                total += labels.shape[0]
 
             # Calculate the train accuracy of each client
             print('Client ', client_id)
-            acc_counter += train_acc(user_output, labels)
+            print('Train Loss: %.4f,  Train Acc.: %.4f' % (train_loss/total , correct/total))
         
 
         # Aggregate and update the server model
-        # server_model = aggregation(server_model_list)
-        # server_model_list = [copy.deepcopy(server_model) for _ in range(num_clients)]
-        # print('server model aggregated')
-        
-        test_acc = test(distribution_list=distribution_list.copy(), server_model_list= server_model_list)
+        # test(distribution_list=distribution_list.copy(), server_model_list= server_model_list)
+        with torch.no_grad():
+            distribution = TestSampGen(test_data, distribution_list)
+            for client_id in range(num_clients):
+                sampler = WeightedRandomSampler(weights=distribution[client_id].tolist(), replacement=True, num_samples=len(test_data)//num_clients)
+                test_loader = torch.utils.data.DataLoader(test_data, sampler=sampler, batch_size=2048)
+                correct = 0
+                total = 0
+                test_loss = 0
+                for images, labels in test_loader:
+                    images, labels = images.cuda(), labels.cuda()
+                    server_model = server_model_list[client_id].eval()
+                    client_model = client_model_list[client_id].eval()
+                    front_ouput = server_model(images)
+                    output = client_model(front_ouput)
+                    loss = criterion(output, labels)
+                    _, predicted = torch.max(output.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+                    test_loss += loss.item()
+                print('Client ', client_id)
+                print('Test Loss: %.4f,  Test Acc.: %.4f' % (train_loss/total , correct/total))
+                server_model.train()
+                client_model.train()
+
+
+        server_model = aggregation(server_model_list)
+        server_model_list = [copy.deepcopy(server_model) for _ in range(num_clients)]
+        print('server model aggregated')
+        # pdb.set_trace()
         # if i%10==0:  
             
         
@@ -208,13 +238,12 @@ def test(test_batch_size = 2048, distribution_list=None, server_model_list=None)
             test_loss += loss.item()
             _, pred = torch.max(user_output, 1)
             correct = np.squeeze(pred.eq(labels.data.view_as(pred)))
-            pdb.set_trace()
             for i in range(len(labels)):
                 label = labels.data[i]
                 class_correct[label] += correct[i].item()
                 class_total[label] += 1
             total_vol += labels.shape[0]
-
+        
         total_correct += torch.sum(correct).item()
         test_loss = test_loss/labels.shape[0]
         print('Client ', client_id)
@@ -223,6 +252,7 @@ def test(test_batch_size = 2048, distribution_list=None, server_model_list=None)
             f'Test Accuracy (Overall): {int(100 * np.sum(class_correct) / np.sum(class_total))}% ' 
             f'({int(np.sum(class_correct))}/{int(np.sum(class_total))})\n'
         )
+    pdb.set_trace()
     return total_correct / total_vol
 
 train(round = 1000, epoches = 10, server_model_list=server_model_list)

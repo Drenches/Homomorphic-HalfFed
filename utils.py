@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import tenseal as ts
+from PIL import Image
 import copy
 import pdb
 
@@ -55,3 +56,17 @@ def aggregation(client_models):
     for global_param in global_model.parameters():
         global_param.data /= len(client_models)
     return global_model
+
+
+def save_image(image_tensor, filename='/home/dev/workspace/Homomorphic-HalfFed/checkimage.png'):
+
+    image_np = np.uint8(image_tensor.squeeze().permute(1, 2, 0).cpu().numpy() * 255)
+
+    image_pil = Image.fromarray(image_np)
+
+    if filename.lower().endswith('.png'):
+        image_pil.save(filename)
+    elif filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
+        image_pil.save(filename, quality=95)
+    else:
+        raise ValueError("Unsupported file format: %s" % filename)
