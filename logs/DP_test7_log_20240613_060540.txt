@@ -1,0 +1,103 @@
+traing batch size 16    
+sigma: 0.5000
+learning rate (f1): 0.01, learning rate (f1): 1e-05
+    max_norm: 1
+Epoch 0
+Test Loss: 2.2893, Test Accuracy: 12.32%
+
+Epoch 1
+Test Loss: 2.2651, Test Accuracy: 24.11%
+
+Epoch 2
+Test Loss: 2.2303, Test Accuracy: 24.49%
+
+Epoch 3
+Test Loss: 2.1707, Test Accuracy: 29.67%
+
+Epoch 4
+Test Loss: 2.0802, Test Accuracy: 40.43%
+
+Epoch 5
+Test Loss: 1.9553, Test Accuracy: 48.42%
+
+Epoch 6
+Test Loss: 1.8004, Test Accuracy: 51.07%
+
+Epoch 7
+Test Loss: 1.6267, Test Accuracy: 57.18%
+
+Epoch 8
+Test Loss: 1.4546, Test Accuracy: 62.85%
+
+Epoch 9
+Test Loss: 1.2919, Test Accuracy: 68.10%
+
+Epoch 10
+Test Loss: 1.1526, Test Accuracy: 71.68%
+
+Epoch 11
+Test Loss: 1.0278, Test Accuracy: 76.06%
+
+Epoch 12
+Test Loss: 0.9289, Test Accuracy: 77.23%
+
+Epoch 13
+Test Loss: 0.8445, Test Accuracy: 78.95%
+
+Epoch 14
+Test Loss: 0.7773, Test Accuracy: 80.82%
+
+Epoch 15
+Test Loss: 0.7166, Test Accuracy: 81.98%
+
+Epoch 16
+Test Loss: 0.6708, Test Accuracy: 82.77%
+
+Epoch 17
+Test Loss: 0.6288, Test Accuracy: 83.84%
+
+Epoch 18
+Test Loss: 0.5993, Test Accuracy: 84.60%
+
+Epoch 19
+Test Loss: 0.5678, Test Accuracy: 85.35%
+
+Epoch 20
+Test Loss: 0.5427, Test Accuracy: 85.74%
+
+Epoch 21
+Test Loss: 0.5255, Test Accuracy: 85.95%
+
+Epoch 22
+Test Loss: 0.5021, Test Accuracy: 86.60%
+
+Epoch 23
+Test Loss: 0.4846, Test Accuracy: 86.96%
+
+Epoch 24
+Test Loss: 0.4660, Test Accuracy: 87.36%
+
+Epoch 25
+Test Loss: 0.4540, Test Accuracy: 87.65%
+
+Epoch 26
+Test Loss: 0.4392, Test Accuracy: 87.80%
+
+Epoch 27
+Test Loss: 0.4252, Test Accuracy: 88.31%
+
+Epoch 28
+Test Loss: 0.4136, Test Accuracy: 88.66%
+
+Epoch 29
+Test Loss: 0.4044, Test Accuracy: 88.67%
+
+Epoch 30
+Test Loss: 0.3946, Test Accuracy: 89.20%
+
+Epoch 31
+Test Loss: 0.3901, Test Accuracy: 89.16%
+
+Epoch 32
+Test Loss: 0.3814, Test Accuracy: 89.28%
+
