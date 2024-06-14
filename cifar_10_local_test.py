@@ -5,12 +5,7 @@ import numpy as np
 from utils import *
 from nets import *
 from cifar10_data_loader import *
-import pdb
-from torch.utils.data import DataLoader
-import datetime
-from torch.utils.data import SubsetRandomSampler
-from torch.utils.data import WeightedRandomSampler
-import random
+from torch import optim
 
 ## Load data and model
 total_num_classes = 10
@@ -27,7 +22,7 @@ selected_data = True
 if selected_data:
     train_data_num, test_data_num, train_data_global, test_data_global, \
     train_data_local_num_dict, train_data_local_dict, test_data_local_dict, DATA_CLASS = load_partition_data_cifar10('data', num_clients, 2, batch_size)
-    client_id = 8
+    client_id = 9
     client_dataloader = train_data_local_dict[client_id]
 else:
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
@@ -65,18 +60,23 @@ AMSGrad = True
 # client_model = CIFAR10CNNUser().to(device).train()
 client_model = SimpleUserNet().to(device).train()
 # client_model = UserNetCIFAR10().to(device).train()
-client_optimizer =torch.optim.Adam(params = client_model.parameters(), lr = learningRate, eps = eps, amsgrad = AMSGrad)
 
 # Server model initi
 # server_model = CIFAR10CNNServer().to(device).train()
 server_model = SimpleServerNet().to(device).train()
 # server_model = ServerNetCIFAR10().to(device).train()
-server_optimizer = torch.optim.Adam(params = server_model.parameters(), lr = learningRate, eps = eps, amsgrad = AMSGrad)
 
+learningRate = 1e-3
+eps = 1e-3
+AMSGrad = True
+optimizer = optim.Adam([
+    {'params': client_model.parameters()},
+    {'params': server_model.parameters()}
+], lr=learningRate, eps=eps, amsgrad=AMSGrad)
 criterion = nn.CrossEntropyLoss()
 
 # training
-def train(epoches = 100, p=0.1, server_model = server_model, client_model = client_model):
+def train(epoches = 200, p=0.1, server_model = server_model, client_model = client_model):
     
     for epoch in range(epoches):
         correct = 0
@@ -97,7 +97,6 @@ def train(epoches = 100, p=0.1, server_model = server_model, client_model = clie
             else:
                 images, labels = images.to(device), labels.to(device)
         
-            
             # Forward pass through the server model
             front_output = server_model(images)
             
@@ -105,14 +104,12 @@ def train(epoches = 100, p=0.1, server_model = server_model, client_model = clie
             user_output = client_model(front_output)
 
             # Calculate the loss and perform backpropagation
-            client_optimizer.zero_grad()
-            server_optimizer.zero_grad()
+            optimizer.zero_grad()
 
             loss = criterion(user_output, labels)
             loss.backward()
 
-            client_optimizer.step()
-            server_optimizer.step()
+            optimizer.step()
 
             _, pred = torch.max(user_output, 1)
             correct += torch.sum(np.squeeze(pred.eq(labels.data.view_as(pred))))
