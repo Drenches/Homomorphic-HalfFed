@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader, Dataset, Sampler, BatchSampler
 import tenseal as ts
+import logging
 import copy
 import random
 import pdb
@@ -49,22 +50,17 @@ def TestSampGen(data, distribution):
         distribution[i] = sample_weights
     return distribution
 
-# def aggregation(client_models):
-#     average_param = client_models[0].parameters()
-#     # for i in range(0, 1):
-#     for i in range(0, len(client_models)):
-#         for k in average_param.keys():
-#             if i ==0:
-#                 continue
-#             else:
-#                 average_param[k] = client_models[]
-#             for global_param, client_param in zip(global_model.parameters(), client_models[i].parameters()):
-#                 global_param.data += client_param.data
-
-#     for global_param in global_model.parameters():
-#         global_param.data /= len(client_models)
-#     return client_models[0]
-
+def adaptiverl(round, adaptive=True): 
+    """
+    return: clientLearingRate, serverLearingRate
+    """
+    if adaptive:
+        if round<200:
+            return 1e-4, 1e-2
+        else:
+            return 1e-2, 1e-5
+    else:
+        return 1e-3, 1e-3
 
 def aggregation(model_list):
 
@@ -96,32 +92,21 @@ def aggregation(model_list):
 
     return new_model
 
-class GroupSampler(Sampler):
-    def __init__(self, data_source, group_size):
-        self.data_source = data_source
-        self.group_size = group_size
-        self.indices = list(range(len(self.data_source)))
+def per_sample_automatic_clip(tensor):
+    """
+    Advanced clip, cite from https://arxiv.org/pdf/2206.07136
     
-    def __iter__(self):
-        # random.shuffle(self.indices)
-        grouped_indices = [self.indices[i:i + self.group_size] for i in range(0, len(self.indices), self.group_size)]
-        random.shuffle(grouped_indices)
-        flattened_indices = [idx for group in grouped_indices for idx in group]
-        return iter(flattened_indices)
-    
-    def __len__(self):
-        return len(self.data_source)
+    It's a amazing and fanstic work! It is highly recommanded for DP guys who can read Chinese to read this blog:
+    https://mdnice.com/writing/e36880200bf8400e8db8f0c35f4db356.
 
-class GroupBatchSampler(BatchSampler):
-    def __init__(self, sampler, batch_size, drop_last):
-        super().__init__(sampler, batch_size, drop_last)
+    """
+    original_norms = torch.norm(tensor.view(tensor.size(0), -1), dim=1)
+    scale_factors =  1 / (original_norms + 1e-2)
+    pruned_tensor = tensor * scale_factors.unsqueeze(1)
+    return pruned_tensor
 
-    def __iter__(self):
-        batch = []
-        for idx in self.sampler:
-            batch.append(idx)
-            if len(batch) == self.batch_size:
-                yield batch
-                batch = []
-        if len(batch) > 0 and not self.drop_last:
-            yield batch
+def gaussian_mechanism(tensor, max_norm, sigma, delta):
+    with torch.no_grad():
+        noise = torch.randn(tensor.size()) * sigma * max_norm
+        noise = noise.cuda()
+    return tensor + noise

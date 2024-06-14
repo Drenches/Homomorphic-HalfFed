@@ -92,15 +92,17 @@ class Encrypt(torch.nn.Module):
 
 
 class ServerNetMNIST(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, hidden=64):
         super(ServerNetMNIST, self).__init__()        
         self.conv1 = torch.nn.Conv2d(1, 4, kernel_size=7, padding=0, stride=3)
+        self.fc1 = torch.nn.Linear(256, hidden)
   
     def forward(self, x):
         x = self.conv1(x)
         x = x * x
         # flattening while keeping the batch axis
         x = x.view(-1, 256)
+        x = self.fc1(x)
         return x
   
     def __call__(self, *args, **kwargs):
@@ -110,18 +112,42 @@ class ServerNetMNIST(torch.nn.Module):
 class UserNetMNIST(torch.nn.Module):
     def __init__(self, hidden=64, output=10):
         super(UserNetMNIST, self).__init__()        
-        self.fc1 = torch.nn.Linear(256, hidden)
+
         self.fc2 = torch.nn.Linear(hidden, output)
   
     def forward(self, x):
-        x = self.fc1(x)
-        x = x * x
+        x = torch.relu(x)
         x = self.fc2(x)
         return x
   
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+
+class LeNetServer(nn.Module):
+    def __init__(self):
+        super(LeNetServer, self).__init__()
+        self.conv1 = nn.Conv2d(1, 6, kernel_size=5)
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(16 * 4 * 4, 120)
     
+    def forward(self, x):
+        x = self.pool(torch.relu(self.conv1(x)))
+        x = self.pool(torch.relu(self.conv2(x)))
+        x = x.view(x.size(0), -1)
+        x = torch.relu(self.fc1(x))
+        return x
+
+class LeNetUser(nn.Module):
+    def __init__(self):
+        super(LeNetUser, self).__init__()
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+    def forward(self, x):
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
     
 class BasicBlock(nn.Module):
@@ -622,6 +648,20 @@ class CNN_DropOut(torch.nn.Module):
         return x
 
 
+def load_model(args):
+    if args.dataset_name == "mnist":
+         client_model_list = [UserNetMNIST().train() for _ in range(args.client_num_in_total)]
+         server_model = ServerNetMNIST().train()
+    elif args.dataset_name == "fashion-mnist":
+         client_model_list = [LeNetUser().train() for _ in range(args.client_num_in_total)]
+         server_model = LeNetServer().train()
+    elif args.dataset_name == "cifar10":
+        client_model_list = [UserNetCIFAR10().train() for _ in range(args.client_num_in_total)]
+        server_model = ServerNetCIFAR10().train()
+    else:
+        raise ValueError(f"dataset {args.dataset_name} have not been supported.")
+    
+    return client_model_list, server_model
 
 
 

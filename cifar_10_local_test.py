@@ -14,18 +14,20 @@ from torch.utils.data import WeightedRandomSampler
 import random
 
 ## Load data and model
-gpu = torch.cuda.is_available()
 total_num_classes = 10
 batch_size = 128
 num_clients = 100
 # seed = 2021
 data_name = 'CIFAR10'
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = "cpu"
+
 selected_data = True
 # selected_data = False
 if selected_data:
     train_data_num, test_data_num, train_data_global, test_data_global, \
-    train_data_local_num_dict, train_data_local_dict, test_data_local_dict, DATA_CLASS = load_partition_data_cifar10('data', num_clients, 10, batch_size)
+    train_data_local_num_dict, train_data_local_dict, test_data_local_dict, DATA_CLASS = load_partition_data_cifar10('data', num_clients, 2, batch_size)
     client_id = 8
     client_dataloader = train_data_local_dict[client_id]
 else:
@@ -61,15 +63,15 @@ learningRate = 1e-3
 eps = 1e-3
 AMSGrad = True
 # User model list
-# client_model = CIFAR10CNNUser().cuda().train()
-client_model = SimpleUserNet().cuda().train()
-# client_model = UserNetCIFAR10().cuda().train()
+# client_model = CIFAR10CNNUser().to(device).train()
+client_model = SimpleUserNet().to(device).train()
+# client_model = UserNetCIFAR10().to(device).train()
 client_optimizer =torch.optim.Adam(params = client_model.parameters(), lr = learningRate, eps = eps, amsgrad = AMSGrad)
 
 # Server model initi
-# server_model = CIFAR10CNNServer().cuda().train()
-server_model = SimpleServerNet().cuda().train()
-# server_model = ServerNetCIFAR10().cuda().train()
+# server_model = CIFAR10CNNServer().to(device).train()
+server_model = SimpleServerNet().to(device).train()
+# server_model = ServerNetCIFAR10().to(device).train()
 server_optimizer = torch.optim.Adam(params = server_model.parameters(), lr = learningRate, eps = eps, amsgrad = AMSGrad)
 
 criterion = nn.CrossEntropyLoss()
@@ -92,9 +94,9 @@ def train(epoches = 100, p=0.1, server_model = server_model, client_model = clie
         for _, (images, labels) in enumerate(client_dataloader):
             
             if selected_data:
-                images, labels = images.permute(0, 3, 1, 2).cuda(), labels.cuda()
+                images, labels = images.permute(0, 3, 1, 2).to(device), labels.to(device)
             else:
-                images, labels = images.cuda(), labels.cuda()
+                images, labels = images.to(device), labels.to(device)
         
             
             # Forward pass through the server model
@@ -140,9 +142,9 @@ def train(epoches = 100, p=0.1, server_model = server_model, client_model = clie
                                             shuffle=True)
             for images, labels in client_test_loader:
                 if selected_data:
-                    images, labels = images.permute(0, 3, 1, 2).cuda(), labels.cuda()
+                    images, labels = images.permute(0, 3, 1, 2).to(device), labels.to(device)
                 else:
-                    images, labels = images.cuda(), labels.cuda()
+                    images, labels = images.to(device), labels.to(device)
                 front_ouput = server_model(images)
                 output = client_model(front_ouput)
                 loss = criterion(output, labels)
