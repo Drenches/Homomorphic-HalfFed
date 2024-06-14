@@ -8,7 +8,6 @@ from cifar10_data_loader import *
 import pdb
 from torch.utils.data import DataLoader
 import datetime
-from fedlab.utils.dataset import MNISTPartitioner,CIFAR10Partitioner
 from torch.utils.data import SubsetRandomSampler
 from torch.utils.data import WeightedRandomSampler
 import random
