@@ -656,8 +656,8 @@ def load_model(args):
          client_model_list = [LeNetUser().train() for _ in range(args.client_num_in_total)]
          server_model = LeNetServer().train()
     elif args.dataset_name == "cifar10":
-        client_model_list = [UserNetCIFAR10().train() for _ in range(args.client_num_in_total)]
-        server_model = ServerNetCIFAR10().train()
+        client_model_list = [CIFAR10CNNUser().train() for _ in range(args.client_num_in_total)]
+        server_model = CIFAR10CNNServer().train()
     else:
         raise ValueError(f"dataset {args.dataset_name} have not been supported.")
     
