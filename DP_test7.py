@@ -91,6 +91,17 @@ def per_sample_automatic_clip(tensor):
     pruned_tensor = tensor * scale_factors.unsqueeze(1)
     return pruned_tensor
 
+def per_sample_adaptive_clip(tensor):
+    """
+    adaptive clip, modified automatic_clip
+
+    However, in our application, this method is not good. It's very unstable
+    """
+    original_norms = torch.norm(tensor.view(tensor.size(0), -1), dim=1)
+    scale_factors = 1/ ((1e-2 / original_norms + 1e-2) + original_norms)
+    pruned_tensor = tensor * scale_factors.unsqueeze(1)
+    return pruned_tensor
+
 def total_norm_clip(tensor, fixed_norm):
     """
     Prunes the entire tensor to have a fixed norm.
@@ -187,6 +198,7 @@ for epoch in range(1000):
         # clipped_batch_grad_z = per_sample_norm_clip(batch_grad_z, max_norm)
         # clipped_batch_grad_z = total_norm_clip(batch_grad_z, max_norm)
         clipped_batch_grad_z = per_sample_automatic_clip(batch_grad_z)
+        # clipped_batch_grad_z = per_sample_adaptive_clip(batch_grad_z)
         noisy_avg_batch_grad_z = gaussian_mechanism(clipped_batch_grad_z, max_norm, sigma, delta)
         # z.backward()
         # z.backward(batch_grad_z)
