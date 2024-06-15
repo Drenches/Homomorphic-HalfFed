@@ -17,12 +17,12 @@ In this version, the data is not encrypted.
 
 parser = argparse.ArgumentParser(description="Non-encrypted training simulation")
 
-parser.add_argument('--dataset_name', type=str, default='mnist', help='Name of the dataset to be used for training.')
+parser.add_argument('--dataset_name', type=str, default='fashion-mnist', help='Name of the dataset to be used for training.')
 parser.add_argument('--data_dir', type=str, default='/home/dev/workspace/data/', help='Name of the dataset to be used for training.')
 parser.add_argument('--learning_rate_f1', type=float, default=1e-2, help='Learning rate for the server optimizer.')
 parser.add_argument('--learning_rate_f2', type=float, default=1e-4, help='Learning rate for the client optimizer.')
 parser.add_argument('--batch_size', type=int, default=16, help='Number of samples per batch.')
-parser.add_argument('--num_epochs', type=int, default=10, help='Number of epochs for one aggregation.')
+parser.add_argument('--num_epochs', type=int, default=5, help='Number of epochs for one aggregation.')
 parser.add_argument('--total_rounds', type=int, default=100, help='Number of total runing round (one is a batch).')
 parser.add_argument('--sigma', type=float, default=0.5, help='Standard devation for noise injector.')
 parser.add_argument('--delta', type=float, default=1e-5, help='Relax factor for differential private.')
@@ -60,20 +60,26 @@ def train(args):
             server_model = server_model_list[client_id].train().to(device)
             
             client_optimizer = torch.optim.AdamW(params = client_model.parameters(), lr = args.learning_rate_f1)
-            server_optimizer = torch.optim.AdamW(params = server_model.parameters(), lr = args.learning_rate_f1)
+            server_optimizer = torch.optim.AdamW(params = server_model.parameters(), lr = args.learning_rate_f2)
             
             step = 0
             correct = 0
             train_loss = 0
-            pdb.set_trace()
+
             local_round = ((dataset.num_train // args.client_num_in_total) // args.batch_size) * args.num_epochs
+            # local_round = 5
             while step<local_round:
                 try:
-                    images, labels = next(client_dataiter)
-                    images, labels = images.to(device), labels.to(device)
 
-                    if args.dataset_name == 'mnist':
+                    images, labels = next(client_dataiter)
+                    if args.dataset_name == 'cifar10':
+                        images, labels = images.permute(0, 3, 1, 2).to(device), labels.to(device)
+                        front_output = server_model(images)
+                    else:
+                        images, labels = images.to(device), labels.to(device)
                         front_output = server_model(images.unsqueeze(1))
+
+                        
                     front_output.retain_grad()
                     user_output = client_model(front_output)
                     
@@ -83,11 +89,12 @@ def train(args):
                     train_loss += loss.detach().item()
                     client_optimizer.step()
                     
-                    
+
                     server_optimizer.zero_grad()
                     batch_grad_z = front_output.grad.clone()
                     clipped_batch_grad_z = per_sample_automatic_clip(batch_grad_z)
                     noisy_avg_batch_grad_z = gaussian_mechanism(clipped_batch_grad_z, 1, args.sigma, args.delta)
+                    # front_output.backward(batch_grad_z)
                     front_output.backward(noisy_avg_batch_grad_z)
                     server_optimizer.step() # Here, maybe we can also try to accumulate gradient from multiple round and update 
                     
@@ -106,7 +113,6 @@ def train(args):
                 except StopIteration:
                     client_dataiter = iter(client_dataloader)
 
-            
             train_loss = train_loss / (local_round * args.batch_size)
             train_acc = correct/((dataset.num_train // args.client_num_in_total) * args.num_epochs)
             print(f'Train acc {train_acc}')
@@ -119,11 +125,6 @@ def train(args):
         for j in range(args.client_num_in_total):
             server_model_list[j].load_state_dict(new_global_model.state_dict()) 
         
-        # if i%2==0 and i!=0:
-        # updated_client_models = [client_model_list[i] for i in random_selected_clients_list]
-        # new_global_client_model = aggregation(updated_client_models)
-        # for j in range(args.client_num_in_total):
-        #     client_model_list[j].load_state_dict(new_global_client_model.state_dict())
 
         # test(distribution_list=distribution_list.copy(), server_model_list= server_model_list)
         if i%2==0 and i!=0:
@@ -136,11 +137,15 @@ def train(args):
                     total = 0
                     test_loss = 0
                     for images, labels in test_loader:
-                        images, labels = images.to(device), labels.to(device)
                         server_model = server_model_list[client_id].eval()
                         client_model = client_model_list[client_id].eval()
-                        if args.dataset_name == 'mnist':
+                        if args.dataset_name == 'cifar10':
+                            images, labels = images.permute(0, 3, 1, 2).to(device), labels.to(device)
+                            front_output = server_model(images)
+                        else:
+                            images, labels = images.to(device), labels.to(device)
                             front_output = server_model(images.unsqueeze(1))
+                            
                         output = client_model(front_output)
                         loss = criterion(output, labels)
                         _, predicted = torch.max(output.data, 1)
