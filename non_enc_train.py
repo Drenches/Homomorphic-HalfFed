@@ -17,17 +17,17 @@ In this version, the data is not encrypted.
 
 parser = argparse.ArgumentParser(description="Non-encrypted training simulation")
 
-parser.add_argument('--dataset_name', type=str, default='fashion-mnist', help='Name of the dataset to be used for training.')
+parser.add_argument('--dataset_name', type=str, default='mnist', help='Name of the dataset to be used for training.')
 parser.add_argument('--data_dir', type=str, default='/home/dev/workspace/data/', help='Name of the dataset to be used for training.')
 parser.add_argument('--learning_rate_f1', type=float, default=1e-2, help='Learning rate for the server optimizer.')
 parser.add_argument('--learning_rate_f2', type=float, default=1e-4, help='Learning rate for the client optimizer.')
-parser.add_argument('--batch_size', type=int, default=16, help='Number of samples per batch.')
-parser.add_argument('--num_epochs', type=int, default=5, help='Number of epochs for one aggregation.')
+parser.add_argument('--batch_size', type=int, default=8, help='Number of samples per batch.')
+parser.add_argument('--num_epochs', type=int, default=3, help='Number of epochs for one aggregation.')
 parser.add_argument('--total_rounds', type=int, default=100, help='Number of total runing round (one is a batch).')
 parser.add_argument('--sigma', type=float, default=0.5, help='Standard devation for noise injector.')
 parser.add_argument('--delta', type=float, default=1e-5, help='Relax factor for differential private.')
 parser.add_argument('--client_num_in_total', type=int, default=100, help='Number of clients in setup. More than 10')
-parser.add_argument('--client_data_class', type=int, default=2, help='Number of classes each client has. Less than 10')
+parser.add_argument('--client_data_class', type=int, default=5, help='Number of classes each client has. Less than 10')
 parser.add_argument('--sample_rate', type=float, default=0.1, help='Sample rate for sample participations in each training round.')
 parser.add_argument('--save_model', type=bool, default=False, help='Whether to save the trained model.')
 
@@ -36,6 +36,7 @@ args = parser.parse_args()
 from data_preprocessing.process.DividedDataset import DividedDataset
 dataset = DividedDataset(args)
 dataset.load_data()
+num_data_each = dataset.num_train//args.client_num_in_total
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 client_model_list, globe_server_model = load_model(args)
@@ -55,7 +56,6 @@ def train(args):
             print(f'Client {client_id+1} is now training')
 
             client_dataloader = dataset.train_loader[client_id]
-            client_dataiter = iter(client_dataloader)
             client_model = client_model_list[client_id].train().to(device)
             server_model = server_model_list[client_id].train().to(device)
             
@@ -66,12 +66,10 @@ def train(args):
             correct = 0
             train_loss = 0
 
-            local_round = ((dataset.num_train // args.client_num_in_total) // args.batch_size) * args.num_epochs
-            # local_round = 5
-            while step<local_round:
-                try:
+            for epoch in range(args.num_epochs):
 
-                    images, labels = next(client_dataiter)
+                for images, labels in client_dataloader:
+
                     if args.dataset_name == 'cifar10':
                         images, labels = images.permute(0, 3, 1, 2).to(device), labels.to(device)
                         front_output = server_model(images)
@@ -110,15 +108,13 @@ def train(args):
                     # print(f'Train acc {train_acc}')
                     # print(f'Train loss {train_loss}')
             
-                except StopIteration:
-                    client_dataiter = iter(client_dataloader)
 
-            train_loss = train_loss / (local_round * args.batch_size)
-            train_acc = correct/((dataset.num_train // args.client_num_in_total) * args.num_epochs)
+            train_loss = train_loss / (num_data_each*args.num_epochs)
+            train_acc = correct/(step*args.batch_size)
             print(f'Train acc {train_acc}')
             print(f'Train loss {train_loss}\n') 
 
-        
+            
         # Aggregate and update the server model
         updated_server_models = [server_model_list[i] for i in random_selected_clients_list]
         new_global_model = aggregation(updated_server_models)
