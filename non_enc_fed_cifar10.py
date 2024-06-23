@@ -36,14 +36,14 @@ else:
 
 # User model list
 # client_model_list = [CIFAR10CNNUser().cuda().train() for _ in range(num_clients)]
-# client_model_list = [SimpleUserNet().cuda().train() for _ in range(num_clients)]
-client_model_list = [UserNetCIFAR10().cuda().train() for _ in range(num_clients)]
+client_model_list = [SimpleUserNet().cuda().train() for _ in range(num_clients)]
+# client_model_list = [UserNetCIFAR10().cuda().train() for _ in range(num_clients)]
 # client_model_list = [DynamicSplitCIFAR10CNN(cut_point=cut_point, server=False).cuda().train() for _ in range(num_clients)]
 
 # Server model initi
 # globe_server_model = CIFAR10CNNServer().cuda()
-# globe_server_model = SimpleServerNet().cuda()
-globe_server_model = ServerNetCIFAR10().cuda().train()
+globe_server_model = SimpleServerNet().cuda()
+# globe_server_model = ServerNetCIFAR10().cuda().train()
 # globe_server_model = DynamicSplitCIFAR10CNN(cut_point=cut_point, server=True).cuda()
 
 def adaptiverl(round, adaptive=True): 

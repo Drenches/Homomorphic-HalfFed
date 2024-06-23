@@ -24,14 +24,20 @@ def convert_to_params(params_str):
 num_clients = 1000
 sample_rate = 1
 num_samples = 60000/num_clients
-num_epoches = 3
-batch_size = 24
+num_epoches = 2
+batch_size = 16
 num_round = num_samples/batch_size
-total_round = 100
+total_round = 10
+# algo = "FedAvg"
+# algo = "FedPer"
+algo = "TailorFL"
+
 
 mnist_net = SimpleConvNet()
 emnist_net = LeNet5()
 cifar10_net = CombinedNet2()
+
+
 datasets = ['MNIST', 'Fashion-MNIST', 'CIFAR10']
 models = [mnist_net, emnist_net, cifar10_net]
 modes = ['FedAvg', 'FedSGD']
@@ -54,21 +60,40 @@ for i, model in enumerate(models):
     print(f"Params: {params_str}")
     flops = convert_to_flops(flops_str)
     params = convert_to_params(params_str)
-    total_mul_ops = flops / 2
-    total_add_ops = flops / 2
-    if mode == 'FedAvg':
+    total_mul_ops = flops
+    total_add_ops = flops 
+    if algo == 'FedAvg':
+        local_flops = total_mul_ops * 3 * num_samples * num_epoches * total_round
+        server_flops = params * num_clients * sample_rate * total_round
+        ratio_server = server_flops/(local_flops+server_flops)
         local_add_ops.append(total_mul_ops * 3 * num_samples * num_epoches * total_round)
         local_mul_ops.append(total_mul_ops * 3 * num_samples * num_epoches * total_round)
         agg_add_ops.append(params * num_clients * sample_rate * total_round)
-    elif mode == 'FedSGD':
+    elif algo == 'FedSGD':
         local_add_ops.append(total_mul_ops * 3 * batch_size * total_round)
         local_mul_ops.append(total_mul_ops * 3 * batch_size * total_round)
         agg_add_ops.append(params * num_clients * sample_rate * total_round)
+    elif algo == 'FedPer':
+        local_flops = total_mul_ops * 3 * num_samples * num_epoches * total_round
+        server_flops = params * num_clients * sample_rate * total_round * 3/5
+        ratio_server = server_flops/(local_flops+server_flops)
+        local_add_ops.append(total_mul_ops * 3 * batch_size * total_round)
+        local_mul_ops.append(total_mul_ops * 3 * batch_size * total_round)
+        agg_add_ops.append(params * num_clients * sample_rate * total_round * 2/3)
+    elif algo == 'TailorFL':
+        local_flops = total_mul_ops * 3 * num_samples * num_epoches * total_round * 1/3
+        server_flops = params * num_clients * sample_rate * total_round * 3
+        ratio_server = server_flops/(local_flops+server_flops)
+        local_add_ops.append(total_mul_ops * 3 * batch_size * total_round)
+        local_mul_ops.append(total_mul_ops * 3 * batch_size * total_round)
+        agg_add_ops.append(params * num_clients * sample_rate * total_round * 2/3)
     # 3: 1 for forward pg and 2 for backward pg during training
-    print(f"Total mul. during local training: {total_mul_ops * 3 * num_samples * num_epoches}")
-    print(f"Total add. during local training: {total_add_ops * 3 * num_samples * num_epoches}")
-    print(f"Total add. during model aggregation: {params * num_clients * sample_rate}\n")
-    print(f"{(total_mul_ops * 3 * num_samples * num_epoches*2) /(params * num_clients * sample_rate)} x")
+    print(f"{algo}")
+    print(f"Local Flops: {local_flops}")
+    print(f"Server Flops: {server_flops}")
+    print(f"Server ratio: {ratio_server}\n")
+    print(f"Local ratio: {1-ratio_server}\n")
+    # print(f"{(total_mul_ops * 3 * num_samples * num_epoches*2) /(params * num_clients * sample_rate)} x")
 
 pdb.set_trace()
 # Data preparation
@@ -121,8 +146,8 @@ ax.legend(loc='upper left')
 # autolabel(p3)
 
 root_save_path = '/home/dev/workspace/Homomorphic-HalfFed/figs/'
-plt.savefig(root_save_path + "motivation_"+ mode + ".jpeg")
-pdf = PdfPages(root_save_path + "motivation_"+ mode  + '.pdf')
+plt.savefig(root_save_path + "motivation_"+ algo + ".jpeg")
+pdf = PdfPages(root_save_path + "motivation_"+ algo  + '.pdf')
 pdf.savefig(bbox_inches = 'tight', pad_inches = 0)
 pdf.close()
 plt.close()
